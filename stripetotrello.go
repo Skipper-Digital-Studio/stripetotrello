@@ -11,7 +11,7 @@ import (
 
 type (
 	StripeEventHandler func(event *stripe.Event) error
-	StripeTrello       struct {
+	Client             struct {
 		stripeWebhookSecret string
 
 		handlers map[string][]StripeEventHandler
@@ -25,6 +25,20 @@ type (
 
 	StripeEventErrors []StripeEventError
 )
+
+func NewClient(cfgs ...func(*Client)) *Client {
+	c := &Client{}
+	for _, f := range cfgs {
+		f(c)
+	}
+	return c
+}
+
+func WithStripeWebhookSecret(secret string) func(*Client) {
+	return func(c *Client) {
+		c.stripeWebhookSecret = secret
+	}
+}
 
 func (sees StripeEventErrors) Error() string {
 	var output []string
@@ -47,24 +61,24 @@ func (see StripeEventError) Error() string {
 	return fmt.Sprintf("Error calling %s - with args %v - result in error %s", see.fn, see.args, see.err.Error())
 }
 
-func (st StripeTrello) Handler(eventType string) ([]StripeEventHandler, error) {
+func (st Client) Handler(eventType string) ([]StripeEventHandler, error) {
 	handler, ok := st.handlers[eventType]
 	if !ok {
-		return nil, newError("StripeTrello.Handler", []interface{}{eventType}, fmt.Errorf(fmt.Sprintf("No %s found in available handlers", eventType)))
+		return nil, newError("Client.Handler", []interface{}{eventType}, fmt.Errorf(fmt.Sprintf("No %s found in available handlers", eventType)))
 	}
 	return handler, nil
 }
 
-func (st StripeTrello) Event(raw []byte, signature string) (*stripe.Event, error) {
+func (st Client) Event(raw []byte, signature string) (*stripe.Event, error) {
 	event, err := webhook.ConstructEvent(raw, signature, st.stripeWebhookSecret)
 	if err != nil {
-		return nil, newError("StripeTrello.Event", []interface{}{raw, signature}, err)
+		return nil, newError("Client.Event", []interface{}{raw, signature}, err)
 	}
 
 	return &event, nil
 }
 
-func (st *StripeTrello) AppendHandler(eventType string, handlers ...StripeEventHandler) {
+func (st *Client) AppendHandler(eventType string, handlers ...StripeEventHandler) {
 	h, ok := st.handlers[eventType]
 	if !ok {
 		st.handlers[eventType] = handlers
@@ -74,25 +88,25 @@ func (st *StripeTrello) AppendHandler(eventType string, handlers ...StripeEventH
 	st.handlers[eventType] = h
 }
 
-func (st *StripeTrello) Handle(event *stripe.Event) error {
+func (st *Client) Handle(event *stripe.Event) error {
 	handlers, err := st.Handler(string(event.Type))
 	if err != nil {
-		return newError("StripeTrello.Handle", []interface{}{event}, err)
+		return newError("Client.Handle", []interface{}{event}, err)
 	}
 
 	for i, h := range handlers {
 		if err := h(event); err != nil {
-			return newError(fmt.Sprintf("StripeTrello.Handle.handlers[%d]", i), []interface{}{event}, err)
+			return newError(fmt.Sprintf("Client.Handle.handlers[%d]", i), []interface{}{event}, err)
 		}
 	}
 
 	return nil
 }
 
-func (st *StripeTrello) HandleParallel(event *stripe.Event) error {
+func (st *Client) HandleParallel(event *stripe.Event) error {
 	handlers, err := st.Handler(string(event.Type))
 	if err != nil {
-		return newError("StripeTrello.HandleParallel", []interface{}{event}, err)
+		return newError("Client.HandleParallel", []interface{}{event}, err)
 	}
 	var wg sync.WaitGroup
 
@@ -103,7 +117,7 @@ func (st *StripeTrello) HandleParallel(event *stripe.Event) error {
 		go func() {
 			defer wg.Done()
 			if err := h(event); err != nil {
-				errors <- newError(fmt.Sprintf("StripeTrello.Handle.handlers[%d]", i), []interface{}{event}, err)
+				errors <- newError(fmt.Sprintf("Client.Handle.handlers[%d]", i), []interface{}{event}, err)
 			}
 		}()
 	}
@@ -116,7 +130,7 @@ func (st *StripeTrello) HandleParallel(event *stripe.Event) error {
 		for err := range errors {
 			errs = append(errs, err)
 		}
-		return newError("StripeTrello.Handle", []interface{}{event}, errs)
+		return newError("Client.Handle", []interface{}{event}, errs)
 	}
 
 	return nil
