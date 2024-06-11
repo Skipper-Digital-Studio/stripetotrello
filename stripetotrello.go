@@ -10,11 +10,14 @@ import (
 )
 
 type (
-	StripeEventHandler func(event *stripe.Event) error
-	Client             struct {
+	StripeEventHandler       func(event *stripe.Event) error
+	StripeFailedEventHandler func(event *stripe.Event, err error) error
+	Client                   struct {
 		stripeWebhookSecret string
 
-		handlers map[string][]StripeEventHandler
+		handlers       map[string][]StripeEventHandler
+		successHandler map[string]StripeEventHandler
+		failureHandler map[string]StripeFailedEventHandler
 	}
 
 	StripeEventError struct {
@@ -88,6 +91,14 @@ func (st *Client) AppendHandler(eventType string, handlers ...StripeEventHandler
 	st.handlers[eventType] = h
 }
 
+func (st *Client) AddSuccessHandler(eventType string, handler StripeEventHandler) {
+	st.successHandler[eventType] = handler
+}
+
+func (st *Client) AddFailureHandler(eventType string, handler StripeFailedEventHandler) {
+	st.failureHandler[eventType] = handler
+}
+
 func (st *Client) Handle(event *stripe.Event) error {
 	handlers, err := st.Handler(string(event.Type))
 	if err != nil {
@@ -96,11 +107,20 @@ func (st *Client) Handle(event *stripe.Event) error {
 
 	for i, h := range handlers {
 		if err := h(event); err != nil {
-			return newError(fmt.Sprintf("Client.Handle.handlers[%d]", i), []interface{}{event}, err)
+			fh, ok := st.failureHandler[string(event.Type)]
+			if !ok {
+				return newError(fmt.Sprintf("Client.Handle.handlers[%d]", i), []interface{}{event}, err)
+			}
+			return fh(event, err)
 		}
 	}
 
-	return nil
+	h, ok := st.successHandler[string(event.Type)]
+	if !ok {
+		return nil
+	}
+
+	return h(event)
 }
 
 func (st *Client) HandleParallel(event *stripe.Event) error {
@@ -130,8 +150,18 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 		for err := range errors {
 			errs = append(errs, err)
 		}
-		return newError("Client.Handle", []interface{}{event}, errs)
+		fh, ok := st.failureHandler[string(event.Type)]
+		nErr := newError("Client.Handle", []interface{}{event}, errs)
+		if !ok {
+			return nErr
+		}
+		return fh(event, nErr)
 	}
 
-	return nil
+	h, ok := st.successHandler[string(event.Type)]
+	if !ok {
+		return nil
+	}
+
+	return h(event)
 }
