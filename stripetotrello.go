@@ -1,4 +1,4 @@
-package stripetrello
+package stripetotrello
 
 import (
 	"fmt"
