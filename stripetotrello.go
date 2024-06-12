@@ -39,6 +39,9 @@ func NewClient(cfgs ...func(*Client)) *Client {
 	for _, f := range cfgs {
 		f(c)
 	}
+	c.handlers = make(map[string][]StripeEventHandler)
+	c.successHandler = make(map[string]StripeSuccessEventHandler)
+	c.failureHandler = make(map[string]StripeFailedEventHandler)
 	return c
 }
 
@@ -87,6 +90,9 @@ func (st Client) Event(raw []byte, signature string) (*stripe.Event, error) {
 }
 
 func (st *Client) AppendHandler(eventType string, handlers ...StripeEventHandler) {
+	if st.handlers == nil {
+		st.handlers = make(map[string][]StripeEventHandler)
+	}
 	h, ok := st.handlers[eventType]
 	if !ok {
 		st.handlers[eventType] = handlers
