@@ -192,13 +192,10 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 		rs = append(rs, r)
 	}
 
-	h, ok := st.successHandler[string(event.Type)]
+	sh, ok := st.successHandler[string(event.Type)]
 	if !ok {
 		return nil
 	}
 
-	if err := h(event, rs); err != nil {
-		return err
-	}
-	return nil
+	return sh(event, rs)
 }
