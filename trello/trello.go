@@ -22,13 +22,14 @@ type (
 	StatusEnum int
 
 	Client struct {
-		Enabled    bool
-		returnUrl  string
-		scopes     []string
-		expiration string
-		apiKey     string
-		token      string
-		appName    string
+		Enabled        bool
+		returnUrl      string
+		expiration     string
+		apiKey         string
+		token          string
+		appName        string
+		organizationID string
+		scopes         []string
 	}
 )
 
@@ -53,6 +54,12 @@ func NewClient(options ...func(*Client)) *Client {
 		f(c)
 	}
 	return c
+}
+
+func WithOrganizationID(id string) func(*Client) {
+	return func(c *Client) {
+		c.organizationID = id
+	}
 }
 
 func WithAppName(appName string) func(*Client) {
@@ -127,8 +134,8 @@ func (c *Client) NewBoard(req CreateBoardReq) (BoardRes, error) {
 	return body, nil
 }
 
-func (c *Client) Boards(organizationID string) ([]BoardRes, error) {
-	baseUrl := fmt.Sprintf("%s/%s?key=%s&token=%s", BASE_API_URL, fmt.Sprintf("1/organizations/%s/boards", organizationID), c.apiKey, c.token)
+func (c *Client) Boards() ([]BoardRes, error) {
+	baseUrl := fmt.Sprintf("%s/%s?key=%s&token=%s", BASE_API_URL, fmt.Sprintf("1/organizations/%s/boards", c.organizationID), c.apiKey, c.token)
 	urlParts := []string{baseUrl}
 	url := strings.Join(urlParts, "&")
 	res, err := http.Get(url)
@@ -148,8 +155,8 @@ func (c *Client) Boards(organizationID string) ([]BoardRes, error) {
 	return body, nil
 }
 
-func (c *Client) BoardByName(organizationID, name string) (BoardRes, error) {
-	boards, err := c.Boards(organizationID)
+func (c *Client) BoardByName(name string) (BoardRes, error) {
+	boards, err := c.Boards()
 	if err != nil {
 		return BoardRes{}, err
 	}
