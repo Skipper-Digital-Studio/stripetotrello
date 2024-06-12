@@ -10,12 +10,12 @@ import (
 )
 
 type (
-	EventResponse interface {
-		ParseData() error
+	StripeEventHandler interface {
+		Handle(event *stripe.Event) error
+		Result() interface{}
 	}
 
-	StripeEventHandler        func(event *stripe.Event) (EventResponse, error)
-	StripeSuccessEventHandler func(event *stripe.Event, responses []EventResponse) (EventResponse, error)
+	StripeSuccessEventHandler func(event *stripe.Event, handlers []StripeEventHandler) error
 	StripeFailedEventHandler  func(event *stripe.Event, err error) error
 	Client                    struct {
 		stripeWebhookSecret string
@@ -110,9 +110,9 @@ func (st *Client) Handle(event *stripe.Event) error {
 		return newError("Client.Handle", []interface{}{event}, err)
 	}
 
-	results := make([]EventResponse, len(handlers))
+	results := make([]StripeEventHandler, len(handlers))
 	for i, h := range handlers {
-		res, err := h(event)
+		err := h.Handle(event)
 		if err != nil {
 			fh, ok := st.failureHandler[string(event.Type)]
 			if !ok {
@@ -120,7 +120,7 @@ func (st *Client) Handle(event *stripe.Event) error {
 			}
 			return fh(event, err)
 		}
-		results[i] = res
+		results[i] = h
 	}
 
 	h, ok := st.successHandler[string(event.Type)]
@@ -128,8 +128,7 @@ func (st *Client) Handle(event *stripe.Event) error {
 		return nil
 	}
 
-	_, err = h(event, results)
-	if err != nil {
+	if err = h(event, results); err != nil {
 		return err
 	}
 	return nil
@@ -143,17 +142,16 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 	var wg sync.WaitGroup
 
 	errors := make(chan StripeEventError, len(handlers))
-	results := make(chan EventResponse, len(handlers))
+	results := make(chan StripeEventHandler, len(handlers))
 
 	for i, h := range handlers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			res, err := h(event)
-			if err != nil {
+			if err := h.Handle(event); err != nil {
 				errors <- newError(fmt.Sprintf("Client.Handle.handlers[%d]", i), []interface{}{event}, err)
 			}
-			results <- res
+			results <- h
 		}()
 	}
 
@@ -183,7 +181,7 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 		return fh(event, nErr)
 	}
 
-	rs := []EventResponse{}
+	rs := []StripeEventHandler{}
 	for r := range results {
 		rs = append(rs, r)
 	}
@@ -193,7 +191,7 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 		return nil
 	}
 
-	if _, err := h(event, rs); err != nil {
+	if err := h(event, rs); err != nil {
 		return err
 	}
 	return nil
