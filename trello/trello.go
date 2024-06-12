@@ -22,7 +22,6 @@ type (
 	StatusEnum int
 
 	Client struct {
-		Enabled        bool
 		returnUrl      string
 		expiration     string
 		apiKey         string
@@ -96,6 +95,10 @@ func WithToken(token string) func(*Client) {
 	return func(c *Client) {
 		c.token = token
 	}
+}
+
+func (c *Client) OrganizationID() string {
+	return c.organizationID
 }
 
 func (c *Client) authURI() string {

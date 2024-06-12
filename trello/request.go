@@ -2,7 +2,6 @@ package trello
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 )
 
