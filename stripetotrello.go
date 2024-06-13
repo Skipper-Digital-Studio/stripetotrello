@@ -10,14 +10,11 @@ import (
 )
 
 type (
-	StripeEventHandler interface {
-		Handle(event *stripe.Event) error
-		Result() interface{}
-	}
-
-	StripeSuccessEventHandler func(event *stripe.Event, handlers []StripeEventHandler) error
+	StripeSuccessEventHandler func(event *stripe.Event, results []interface{}) error
 	StripeFailedEventHandler  func(event *stripe.Event, err error) error
-	Client                    struct {
+	StripeEventHandler        func(event *stripe.Event) (interface{}, error)
+
+	Client struct {
 		stripeWebhookSecret string
 
 		handlers       map[string][]StripeEventHandler
@@ -130,9 +127,9 @@ func (st *Client) Handle(event *stripe.Event) error {
 		return newError("Client.Handle", []interface{}{event}, err)
 	}
 
-	results := make([]StripeEventHandler, len(handlers))
+	results := make([]interface{}, len(handlers))
 	for i, h := range handlers {
-		err := h.Handle(event)
+		res, err := h(event)
 		if err != nil {
 			fh, ok := st.failureHandler[string(event.Type)]
 			if !ok {
@@ -140,7 +137,7 @@ func (st *Client) Handle(event *stripe.Event) error {
 			}
 			return fh(event, err)
 		}
-		results[i] = h
+		results[i] = res
 	}
 
 	h, ok := st.successHandler[string(event.Type)]
@@ -162,16 +159,17 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 	var wg sync.WaitGroup
 
 	errors := make(chan StripeEventError, len(handlers))
-	results := make(chan StripeEventHandler, len(handlers))
+	results := make(chan interface{}, len(handlers))
 
 	for i, h := range handlers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := h.Handle(event); err != nil {
+			res, err := h(event)
+			if err != nil {
 				errors <- newError(fmt.Sprintf("Client.Handle.handlers[%d]", i), []interface{}{event}, err)
 			}
-			results <- h
+			results <- res
 		}()
 	}
 
@@ -201,7 +199,7 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 		return fh(event, nErr)
 	}
 
-	rs := []StripeEventHandler{}
+	rs := []interface{}{}
 	for r := range results {
 		rs = append(rs, r)
 	}
