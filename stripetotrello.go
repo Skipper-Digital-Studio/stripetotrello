@@ -31,8 +31,22 @@ type (
 		err  error
 	}
 
+	StripeUnsupportedEventError struct {
+		event string
+	}
+
 	StripeEventErrors []StripeEventError
 )
+
+func NewUnsupportedError(event string) StripeUnsupportedEventError {
+	return StripeUnsupportedEventError{
+		event: event,
+	}
+}
+
+func (s StripeUnsupportedEventError) Error() string {
+	return fmt.Sprintf("Unsupported event detected: %s", s.event)
+}
 
 func NewClient(cfgs ...func(*Client)) *Client {
 	c := &Client{}
@@ -75,7 +89,7 @@ func (see StripeEventError) Error() string {
 func (st Client) Handler(eventType string) ([]StripeEventHandler, error) {
 	handler, ok := st.handlers[eventType]
 	if !ok {
-		return nil, newError("Client.Handler", []interface{}{eventType}, fmt.Errorf(fmt.Sprintf("No %s found in available handlers", eventType)))
+		return nil, NewUnsupportedError(fmt.Sprintf("No %s found in available handlers", eventType))
 	}
 	return handler, nil
 }
