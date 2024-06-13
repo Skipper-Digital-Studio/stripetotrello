@@ -153,6 +153,12 @@ func (st *Client) Handle(event *stripe.Event) error {
 
 func (st *Client) HandleParallel(event *stripe.Event) error {
 	handlers, err := st.Handler(string(event.Type))
+	switch err.(type) {
+	case StripeEventError:
+		return newError("Client.HandleParallel", []interface{}{event}, err)
+	case StripeUnsupportedEventError:
+		return err
+	}
 	if err != nil {
 		return newError("Client.HandleParallel", []interface{}{event}, err)
 	}
