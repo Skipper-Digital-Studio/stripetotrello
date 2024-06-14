@@ -181,10 +181,19 @@ func (c *Client) Invite(email, boardID string) error {
 	if err != nil {
 		return err
 	}
-	_, err = client.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
 		return err
 	}
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to get all the lists for the board with id: %++v", req)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return err
+	}
+	fmt.Println("%++v", body)
 	return nil
 }
 
