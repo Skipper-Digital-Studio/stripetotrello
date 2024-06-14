@@ -1,4 +1,4 @@
-module github.com/Skipper-Digital-Studio/stripetotrello
+module github.com/skipper-digital-studio/stripetotrello
 
 go 1.22.3
 
