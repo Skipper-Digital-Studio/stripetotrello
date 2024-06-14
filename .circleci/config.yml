@@ -1,7 +1,6 @@
-
 version: 2.1
 orbs:
-  doctl: digitalocean/cli@0.1.1
+  go: circleci/go@1.7.3
 
 jobs:
   test: # this can be any name you choose
