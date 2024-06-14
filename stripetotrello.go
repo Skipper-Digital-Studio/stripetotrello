@@ -193,7 +193,8 @@ func (st *Client) HandleParallel(event *stripe.Event) error {
 		if !ok {
 			return nErr
 		}
-		return fh(event, nErr)
+		tt := fh(event, nErr)
+		return tt
 	}
 
 	if len(results) != len(handlers) {
