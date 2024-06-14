@@ -193,7 +193,6 @@ func (c *Client) Invite(email, boardID string) error {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		return err
 	}
-	fmt.Println("%++v", body)
 	return nil
 }
 
