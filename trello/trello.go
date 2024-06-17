@@ -116,8 +116,11 @@ func (c *Client) authURI() string {
 }
 
 func (c *Client) NewBoard(req CreateBoardReq) (BoardRes, error) {
-	params := fmt.Sprintf("%s&key=%s&token=%s", req.String(), c.apiKey, c.token)
 	var body BoardRes = BoardRes{}
+	if !req.Ready() {
+		return body, fmt.Errorf("Invalid request %+v", req)
+	}
+	params := fmt.Sprintf("%s&key=%s&token=%s", req.String(), c.apiKey, c.token)
 
 	uri := fmt.Sprintf("%s/%s?%s", BASE_API_URL, "1/boards/", params)
 	res, err := http.Post(uri, "Content-Type/json", nil)

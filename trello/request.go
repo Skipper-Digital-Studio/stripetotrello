@@ -38,8 +38,16 @@ type (
 
 		IDBoardSource  string
 		KeepFromSource string
+		EmailsToInvite []string
 	}
 )
+
+func (c CreateBoardReq) Ready() bool {
+	if c.Name == "" || c.Description == "" || c.IDOrganization == "" {
+		return false
+	}
+	return true
+}
 
 func NewCreateBoardReq(cfgs ...func(*CreateBoardReq)) *CreateBoardReq {
 	output := &CreateBoardReq{}
@@ -49,6 +57,13 @@ func NewCreateBoardReq(cfgs ...func(*CreateBoardReq)) *CreateBoardReq {
 
 	return output
 }
+
+func CreateBoardWithEmailsToInvite(emails []string) func(*CreateBoardReq) {
+	return func(c *CreateBoardReq) {
+		c.EmailsToInvite = emails
+	}
+}
+
 func CreateBoardWithName(name string) func(*CreateBoardReq) {
 	return func(c *CreateBoardReq) {
 		c.Name = name
